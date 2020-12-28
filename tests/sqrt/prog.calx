@@ -1,0 +1,8 @@
+Scale(10'000)
+sqrt(0)
+sqrt(0.2)
+sqrt(0.5)
+sqrt(1)
+sqrt(10)
+sqrt(10.1)
+sqrt(12 ** 23'591)

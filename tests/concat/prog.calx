@@ -1,0 +1,14 @@
+fun strpow(b, e) {
+    r := ""
+    for (; e != 0; e >>= 1) {
+        if ((e & 1) != 0) {
+            r ~= b
+        }
+        b ~= b
+    }
+    return r
+}
+
+s := strpow("HUE", 100'000)
+@s
+s[@s - 1]

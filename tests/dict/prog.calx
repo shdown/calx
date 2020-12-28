@@ -1,0 +1,25 @@
+d := {}
+@d
+d.item == nil
+
+d.item = nil
+@d
+d.item == nil
+
+d.item = 8
+@d
+d.item == nil
+d.item
+
+d.thing = true
+@d
+d.thing
+
+d := {
+    "one": 1,
+    "two": 2,
+    "one": 3,
+    "one": 4
+}
+@d
+d.one

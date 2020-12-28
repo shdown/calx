@@ -1,0 +1,24 @@
+!true
+!false
+!!0
+!!nil
+!![]
+
+fun Or(a, b) {
+    a || b
+}
+
+fun And(a, b) {
+    a && b
+}
+
+fun TruthTable(f) {
+    "---"
+    f(true, true)
+    f(true, false)
+    f(false, true)
+    f(false, false)
+}
+
+TruthTable(Or)
+TruthTable(And)

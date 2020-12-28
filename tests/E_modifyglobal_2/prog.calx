@@ -1,0 +1,2 @@
+global_var = "foobar"
+global_var += 123

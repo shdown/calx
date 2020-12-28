@@ -1,0 +1,9 @@
+a = {}
+w = Wref(a)
+a.field = w
+@a
+Wvalue(w) == a
+a = 25
+Wvalue(w) == a
+a = nil
+Wvalue(w) == a

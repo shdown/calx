@@ -1,0 +1,41 @@
+fun f(n) {
+    a := 0
+    b := 0
+    c := 0
+    for (niters := 0; niters < n; niters += 1) {
+        a += 1
+        if (niters >= 10) {
+            break
+        }
+        b += 1
+        if (niters > 5) {
+            continue
+        }
+        c += 1
+    }
+    return [a, b, c, niters]
+}
+
+fun g() {
+    a := 0
+    b := 0
+    c := 0
+    for (niters := 0; ; niters += 1) {
+        a += 1
+        if (niters >= 10) {
+            break
+        }
+        b += 1
+        if (niters > 5) {
+            continue
+        }
+        c += 1
+    }
+    return [a, b, c, niters]
+}
+
+f(100)
+f(8)
+f(5)
+f(3)
+g()

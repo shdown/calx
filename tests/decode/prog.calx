@@ -1,0 +1,18 @@
+fun mkstr(b, e) {
+    r := ""
+    for (; e != 0; e >>= 1) {
+        if ((e & 1) != 0) {
+            r ~= b
+        }
+        b ~= b
+    }
+    return r
+}
+
+Decode("1'000'000", 2)
+
+Decode("20.1", 3)
+
+Decode(
+    "-" ~ mkstr("GZ", 1'000) ~ "." ~ mkstr("YW", 1'000),
+    36)

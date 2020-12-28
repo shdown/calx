@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+opwd=$PWD
+cd -- "$(dirname -- "$(readlink -- "$0" || printf '%s\n' "$0")")" || exit $?
+shopt -s failglob
+
+REPO_ROOT=..
+CALX=( "$REPO_ROOT"/calx )
+PREFIX=()
+
+run_on_testcase() {
+    local o; o=$(mktemp) || return $?
+
+    echo >&2 ">>> Running on $1"
+
+    "${PREFIX[@]}" "${CALX[@]}" "$1"/prog.calx > "$o"
+    local s=$?
+    local ret
+
+    if [[ -e $1/output ]]; then
+        if (( s == 0 )); then
+            if cmp -- "$o" "$1"/output; then
+                ret=0
+            else
+                echo >&2 "[ERROR] Output is different from expected:"
+                echo >&2
+                diff -u -- "$o" "$1"/output
+                ret=1
+            fi
+        else
+            ret=1
+        fi
+
+    elif [[ -e $1/error ]]; then
+        if (( s == 1 )); then
+            ret=0
+        else
+            echo >&2 "[ERROR] Expected exit code 1, got $s."
+            ret=1
+        fi
+
+    else
+        echo >&2 "[ERROR] Found neither 'output' nor 'error' inside '$1'."
+        ret=2
+    fi
+
+    rm -f -- "$o"
+    return -- "$ret"
+}
+
+case "$1" in
+'')
+    ;;
+c)
+    kcov_dir="$REPO_ROOT"/coverage
+    kcov_opts=( --include-path="$REPO_ROOT" )
+    PREFIX=( kcov "${kcov_opts[@]}" "$kcov_dir" )
+    rm -rf -- "$kcov_dir" || exit $?
+    ;;
+v)
+    PREFIX=( valgrind -q --leak-check=full --error-exitcode=42 )
+    ;;
+*)
+    echo >&2 "USAGE: $0 [c | v]"
+    exit 2
+    ;;
+esac
+
+for t in */; do
+    run_on_testcase "$t" || exit $?
+done
+
+echo >&2 "All tests passed."

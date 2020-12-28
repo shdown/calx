@@ -1,0 +1,10 @@
+fun f() {}
+
+Kind(nil)
+Kind(true)
+Kind(1)
+Kind("")
+Kind(Kind)
+Kind(f)
+Kind([])
+Kind({})

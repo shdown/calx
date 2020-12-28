@@ -1,0 +1,15 @@
+fun trace(f, name) {
+    "-> " ~ name ~ ":"
+    f(12.9)
+    f(3.5)
+    f(2.01)
+    f(1)
+    f(0)
+    f(-1)
+    f(-2.01)
+    f(-3.5)
+    f(-12.9)
+}
+
+trace(trunc, "trunc")
+trace(floor, "floor")

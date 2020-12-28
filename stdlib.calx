@@ -1,0 +1,394 @@
+# (c) 2021 shdown
+# This code is licensed under MIT license (see LICENSE.MIT for details)
+
+fun ToString(x) {
+    return x ~ ""
+}
+
+fun Assert(x) {
+    if (!x) {
+        Error("Assertion failed!")
+    }
+}
+
+fun abs(x) {
+    # $requires x number
+
+    if (x < 0) {
+        return -x
+    } else {
+        return x
+    }
+}
+
+fun mod(x, y) {
+    # $requires x number integer
+    # $requires y number integer
+    # $requires (y > 0)
+
+    x %= y
+    if (x < 0) {
+        x += y
+    }
+    return x
+}
+
+fun div_ceil(a, b) {
+    # $requires a number integer
+    # $requires b number integer
+    # $requires (a >= 0)
+    # $requires (b > 0)
+
+    return (a + b - 1) // b
+}
+
+fun fact(n) {
+    # $requires n number integer
+    # $requires (n >= 0)
+
+    r := 1
+    for (i := 2; i <= n; i += 1) {
+        r *= i
+    }
+    return r
+}
+
+fun choice(n, k) {
+    # $requires n number integer
+    # $requires k number integer
+    # $requires (n >= 0)
+    # $requires (k >= 0)
+
+    r := 1
+    for (i := 1; i <= k; i += 1) {
+        r *= n + 1 - i
+        r //= i
+    }
+    return r
+}
+
+fun fdiv(x, y) {
+    # $requires x number
+    # $requires y number
+    # $requires (y != 0)
+
+    return (x / y) // 1
+}
+
+fun fmod(x, y) {
+    # $requires x number
+    # $requires y number
+    # $requires (y != 0)
+
+    return x - y * fdiv(x, y)
+}
+
+fun gcd(u, v) {
+    # $requires u number integer
+    # $requires v number integer
+
+    if (v == 0) {
+        return u
+    }
+    for (;;) {
+        u %= v
+        if (u == 0) {
+            return v
+        }
+        tmp := u; u = v; v = tmp
+    }
+}
+
+fun lcm(u, v) {
+    # $requires u number integer
+    # $requires v number integer
+
+    r := gcd(u, v)
+    if (r == 0) {
+        return 0
+    }
+    return u // r * v
+}
+
+fun mod_pow(b, e, m) {
+    # $requires b number integer
+    # $requires e number integer
+    # $requires m number integer
+    # $requires (b >= 0)
+    # $requires (e >= 0)
+    # $requires (m > 0)
+
+    r := 1 % m
+    for (; e > 0; e //= 2) {
+        if ((e & 1) == 1) {
+            r *= b
+            r %= m
+        }
+        b *= b
+        b %= m
+    }
+    return r
+}
+
+fun random_bits(n) {
+    # $requires n number integer
+    # $requires (n >= 0)
+
+    BASE := 2 ** 32
+    r := 0
+    for (; n >= 32; n -= 32) {
+        r *= BASE
+        r += Random32()
+    }
+    if (n > 0) {
+        last_base := 1 << n
+        r *= last_base
+        r += Random32() & (last_base - 1)
+    }
+    return r
+}
+
+fun random_mod(n) {
+    # $requires n number integer
+    # $requires (n > 0)
+
+    nbits := 0
+    for (t := n - 1; t > 0; t //= 2) {
+        nbits += 1
+    }
+    for (;;) {
+        x := random_bits(nbits)
+        if (x < n) {
+            return x
+        }
+    }
+}
+
+fun random_range(lb, rb) {
+    # $requires lb number integer
+    # $requires rb number integer
+    # $requires (lb < rb)
+
+    return lb + random_mod(rb - lb)
+}
+
+fun probab_prime_round(n, a) {
+    # $requires n number integer
+    # $requires a number integer
+    # $requires (n > 2)
+    # $requires ((n & 1) == 1)
+    # $requires (2 <= a && a < (n - 1))
+
+    d := n - 1
+    r := 0
+    while ((d & 1) == 0) {
+        d //= 2
+        r += 1
+    }
+
+    x := mod_pow(a, d, n)
+    if (x == 1 || x == n - 1) {
+        return true
+    }
+    for (i := 1; i < r; i += 1) {
+        x = x * x % n
+        if (x == n - 1) {
+            return true
+        }
+    }
+    return false
+}
+
+fun probab_prime(n, nrounds) {
+    # $requires n number integer
+    # $requires nrounds number integer
+    # $requires (nrounds >= 0)
+
+    if (n < 4 || (n & 1) == 0) {
+        return n == 2
+    }
+    for (i := 0; i < nrounds; i += 1) {
+        a := random_range(2, n - 1)
+        if (!probab_prime_round(n, a)) {
+            return false
+        }
+    }
+    return true
+}
+
+fun jacobi(a, n) {
+    # $requires a number integer
+    # $requires n number integer
+    # $requires (n > 0)
+    # $requires ((n & 1) == 1)
+
+    a %= n; if (a < 0) { a += n }
+    t := 1
+    while (a != 0) {
+        while ((a & 1) == 0) {
+            a //= 2
+            r := n & 7
+            if (r == 3 || r == 5) {
+                t = -t
+            }
+        }
+        tmp := a; a = n; n = tmp
+        if ((a & 3) == 3 && (n & 3) == 3) {
+            t = -t
+        }
+        a %= n
+    }
+    if (n == 1) {
+        return t
+    } else {
+        return 0
+    }
+}
+
+fun kronecker(a, n) {
+    # $requires a number integer
+    # $requires n number integer
+
+    if (n == 0) {
+        if (a == -1 || a == 1) {
+            return 1
+        }
+        return 0
+    }
+
+    factor := 1
+    if (n < 0) {
+        if (a < 0) {
+            factor = -factor
+        }
+        n = -n
+    }
+
+    while ((n & 1) == 0) {
+        n //= 2
+        if ((a & 1) == 0) {
+            return 0
+        }
+        r := a & 7
+        if (r == 3 || r == 5) {
+            factor = -factor
+        }
+    }
+
+    return factor * jacobi(a, n)
+}
+
+fun factorize(n) {
+    # $requires n number integer
+    # $requires (n >= 1)
+
+    if (n <= 2) {
+        return 0
+    }
+    if (n % 2 == 0) {
+        return 2
+    }
+    for (i := 3; i * i <= n; i += 2) {
+        if (n % i == 0) {
+            return i
+        }
+    }
+    return 0
+}
+
+fun nth_root_NAT_APPROX(a, n, nsteps) {
+    # $requires a number integer
+    # $requires n number integer
+    # $requires nsteps number integer
+    # $requires (a >= 0)
+    # $requires (n >= 2)
+    # $requires (nsteps >= 0)
+
+    if (a == 0) {
+        return 1
+    }
+    k := NumDigits(a, "i")
+    p := (k - 1) // n
+
+    Q := p - (floor(nsteps / 3.32) + 1)
+    if (Q < 0) {
+        Q = 0
+    }
+
+    a = ceil(DownScale(a, Q * n))
+    lb := UpScale(1, p - Q)
+    rb := UpScale(1, p - Q + 1)
+
+    for (; nsteps > 0; nsteps -= 1) {
+        mid := (lb + rb) // 2
+        if (mid == lb) {
+            break
+        }
+        if (mid ** n <= a) {
+            lb = mid
+        } else {
+            rb = mid
+        }
+    }
+    return UpScale(rb, Q)
+}
+
+fun nth_root_NAT(a, n) {
+    # $requires a number integer
+    # $requires n number integer
+    # $requires (a >= 0)
+    # $requires (n >= 2)
+
+    nsteps := 0
+    for (tmp := n; tmp > 0; tmp //= 2) {
+        nsteps += 1
+    }
+    for (tmp := NumDigits(a, "i"); tmp > 0; tmp //= 2) {
+        nsteps += 4
+    }
+
+    x := nth_root_NAT_APPROX(a, n, nsteps)
+
+    while (x ** n > a) {
+        x = (a // (x ** (n - 1)) + (n - 1) * x) // n
+    }
+    return x
+}
+
+fun nth_root(a, n) {
+    # $requires a number
+    # $requires n number integer
+    # $requires (n >= 2)
+    # $requires (a >= 0 || (n & 1) == 1)
+
+    neg := false
+    if (a < 0) {
+        if ((n & 1) == 0) {
+            Error("cannot take even root of negative value")
+        }
+        a = -a
+        neg = true
+    }
+
+    s := Scale()
+
+    r := nth_root_NAT(UpScale(a, s * n) // 1, n)
+    r = DownScale(r, s)
+    if (neg) {
+        r = -r
+    }
+    return r
+}
+
+fun sqrt(a) {
+    # $requires a number
+    # $requires (a >= 0)
+
+    return nth_root(a, 2)
+}
+
+fun cbrt(a) {
+    # $requires a number
+
+    return nth_root(a, 3)
+}

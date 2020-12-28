@@ -1,0 +1,5 @@
+counter = 0
+f := LoadString("counter += 1; return counter")
+f()
+f()
+f()

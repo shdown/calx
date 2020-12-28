@@ -1,0 +1,10 @@
+LIMIT := 100
+n := 0
+x := Random32()
+while (Random32() == x) {
+    n += 1
+    if (n > LIMIT) {
+        Error("Random32() seems to be failing...")
+    }
+}
+"OK"

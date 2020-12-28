@@ -1,0 +1,12 @@
+[submodule "libdeci"]
+	path = libdeci
+	url = git@github.com:shdown/libdeci.git
+[submodule "libdeci-kara"]
+	path = libdeci-kara
+	url = git@github.com:shdown/libdeci-kara.git
+[submodule "libdeci-ntt"]
+	path = libdeci-ntt
+	url = git@github.com:shdown/libdeci-ntt.git
+[submodule "libdeci-newt"]
+	path = libdeci-newt
+	url = git@github.com:shdown/libdeci-newt.git
