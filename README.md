@@ -14,7 +14,7 @@ You will need:
 
 To build calx, simply clone this repository and run the following in its root:
 ```
-cmake -DCMAKE_BUILD_TYPE=Release . && make
+git submodule update --init && cmake -DCMAKE_BUILD_TYPE=Release . && make
 ```
 This will build the `./calx` binary.
 
