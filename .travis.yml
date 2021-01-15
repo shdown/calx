@@ -1,0 +1,13 @@
+dist: bionic
+language: c
+compiler:
+  - gcc
+  - clang
+before_install:
+  - sudo apt-get update -y
+  - sudo apt-get update
+  - sudo apt-get install -y cmake libreadline-dev
+script:
+  - cmake .
+  - make
+  - ./tests/runner
