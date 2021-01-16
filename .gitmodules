@@ -1,12 +1,12 @@
 [submodule "libdeci"]
 	path = libdeci
-	url = git@github.com:shdown/libdeci.git
+	url = https://github.com/shdown/libdeci
 [submodule "libdeci-kara"]
 	path = libdeci-kara
-	url = git@github.com:shdown/libdeci-kara.git
+	url = https://github.com/shdown/libdeci-kara
 [submodule "libdeci-ntt"]
 	path = libdeci-ntt
-	url = git@github.com:shdown/libdeci-ntt.git
+	url = https://github.com/shdown/libdeci-ntt
 [submodule "libdeci-newt"]
 	path = libdeci-newt
-	url = git@github.com:shdown/libdeci-newt.git
+	url = https://github.com/shdown/libdeci-newt
