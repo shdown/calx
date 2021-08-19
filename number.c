@@ -518,11 +518,11 @@ size_t number_tostring_base(Number *a, uint8_t base, size_t nfrac, char *r)
 static inline Number *unsafe_strip(Number *a, size_t nwr, size_t sr)
 {
     size_t nwa = a->nwords;
+    size_t sa = a->scale;
 
-    if (nwa == nwr)
+    if (nwa == nwr && sa == sr)
         return a;
 
-    size_t sa = a->scale;
     deci_UWORD *wa = a->words;
 
     size_t ds = sa - sr;
@@ -531,8 +531,7 @@ static inline Number *unsafe_strip(Number *a, size_t nwr, size_t sr)
         a->scale = sr;
     }
 
-    a = unsafe_reallocate(a, nwr);
-    return a;
+    return unsafe_reallocate(a, nwr);
 }
 
 static inline Number *unsafe_normalize_full(Number *a)
@@ -559,7 +558,7 @@ static Number *unsafe_normalize_after_div(Number *a, size_t nwr, NumberTruncateP
     }
 
     if (sa >= ntp.scale) {
-        a = unsafe_strip(a, new_nwa, ntp.scale);
+        a = unsafe_strip(a, new_nwa - sa + ntp.scale, ntp.scale);
         if (ntp.scale)
             a->words[0] -= a->words[0] % ntp.submod;
     } else {
