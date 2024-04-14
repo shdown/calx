@@ -3,7 +3,7 @@
 
 #include "lexer.h"
 
-#include "ht.h"
+#include "xht.h"
 #include "hash.h"
 
 enum {
@@ -66,7 +66,7 @@ static void level_stack_free(LevelStack *s)
     free(s->data);
 }
 
-static Ht make_keywords_ht(void)
+static xHt make_keywords_ht(void)
 {
     typedef struct {
         const char *spelling;
@@ -90,13 +90,13 @@ static Ht make_keywords_ht(void)
         {0},
     };
 
-    Ht ht = ht_new(1);
+    xHt ht = xht_new(1);
     for (const Keyword *p = keywords; p->spelling; ++p) {
         const char *spelling = p->spelling;
         size_t nspelling = strlen(spelling);
         uint32_t hash = hash_str(spelling, nspelling);
         uint32_t value = p->kind | (p->is_blocky ? BLOCKY_BIT : 0);
-        ht_insert_new_unchecked(&ht, spelling, nspelling, hash, value);
+        (void) xht_insert_new_unchecked_int(&ht, spelling, nspelling, hash, value);
     }
     return ht;
 }
@@ -110,7 +110,7 @@ struct Lexer {
     LevelStack level_stack;
     char inserted_semicolon_flag;
 
-    Ht keywords;
+    xHt keywords;
 
     const char *err_msg;
 };
@@ -245,7 +245,7 @@ static Lexeme identifier(Lexer *x)
 out:
     (void) 0;
     size_t size = x->cur - start;
-    uint32_t value = ht_get(&x->keywords, start, size, hash_str(start, size), LK_IDENT);
+    uint32_t value = xht_get_int(&x->keywords, start, size, hash_str(start, size), LK_IDENT);
     if (value & BLOCKY_BIT) {
         level_stack_set_blocky(&x->level_stack);
         value &= ~BLOCKY_BIT;
@@ -410,6 +410,6 @@ const char *lexer_error_msg(Lexer *x)
 void lexer_destroy(Lexer *x)
 {
     level_stack_free(&x->level_stack);
-    ht_destroy(&x->keywords);
+    xht_destroy(&x->keywords);
     free(x);
 }

@@ -22,6 +22,7 @@
 #define UU_UNLIKELY(E) __builtin_expect(E, 0)
 
 #define UU_INHEADER static inline __attribute__((unused))
+#define UU_ALWAYS_INLINE __attribute__((always_inline))
 
 #define UU_PANIC(S) \
     do { \

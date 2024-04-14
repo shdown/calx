@@ -2,7 +2,7 @@
 // This code is licensed under MIT license (see LICENSE.MIT for details)
 
 #include "vm.h"
-#include "ht.h"
+#include "xht.h"
 #include "str.h"
 #include "number.h"
 #include "list.h"
@@ -68,7 +68,7 @@ typedef struct {
 } GlobalList;
 
 struct State {
-    Ht globals_table;
+    xHt globals_table;
     GlobalList globals;
 
     ScratchPad *pad;
@@ -80,7 +80,7 @@ State *state_new(void)
 {
     State *state = uu_xmalloc(sizeof(State), 1);
     *state = (State) {
-        .globals_table = ht_new(0),
+        .globals_table = xht_new(0),
         .globals = {NULL, 0, 0},
         .pad = NULL,
         .ntp = ntp_from_prec(20),
@@ -90,14 +90,14 @@ State *state_new(void)
 
 void state_destroy(State *state)
 {
-    ht_destroy(&state->globals_table);
+    xht_destroy(&state->globals_table);
     for (size_t i = 0; i < state->globals.size; ++i)
         maybe_value_unref(state->globals.data[i]);
     free(state->globals.data);
     free(state);
 }
 
-static inline __attribute__((warn_unused_result))
+static inline UU_ALWAYS_INLINE __attribute__((warn_unused_result))
 Value *popn(Value *top, size_t n)
 {
     for (; n; --n)
@@ -105,7 +105,7 @@ Value *popn(Value *top, size_t n)
     return top;
 }
 
-static inline __attribute__((warn_unused_result))
+static inline UU_ALWAYS_INLINE __attribute__((warn_unused_result))
 Value *pushn(Value *top, size_t n)
 {
     for (; n; --n)
@@ -212,7 +212,7 @@ void value_free(Value v)
 uint32_t state_intern_global(State *state, const char *name, size_t nname)
 {
     uint32_t old_size = state->globals.size;
-    uint32_t idx = ht_put(
+    uint32_t idx = *xht_put_int(
         &state->globals_table,
         name, nname, hash_str(name, nname),
         old_size);
@@ -304,7 +304,7 @@ static ScratchPad *scratch_pad_free(ScratchPad *pad)
 
 // Borrows (takes regular references to):
 //   * 'v'.
-static inline bool value_is_truthy(Value v)
+static inline UU_ALWAYS_INLINE bool value_is_truthy(Value v)
 {
     return v != &value_cache[VALUE_CACHE_NIL] && v != &value_cache[VALUE_CACHE_FALSE];
 }
@@ -414,17 +414,18 @@ void value_write(Value v, bool esc, unsigned reclimit)
         {
             Dict *dict = (Dict *) v;
             fputs("{", stdout);
-            for (size_t i = 0; i < dict->values_size; ++i) {
-                if (i)
+
+            bool first = true;
+            xht_foreach(&dict->xht, item, item_end) {
+                if (!first) {
                     fputs(", ", stdout);
-
-                size_t nk;
-                const char *k = ht_indexed_key(&dict->keys, i, &nk);
-
-                write_string_escaped(k, nk);
+                }
+                write_string_escaped(item->key, item->nkey);
                 fputs(": ", stdout);
-                value_write(dict->values[i], true, reclimit);
+                value_write(item->value.p, true, reclimit);
+                first = false;
             }
+
             fputs("}", stdout);
         }
         break;
@@ -488,7 +489,7 @@ const char *value_kind_name_long(char kind)
 // Borrows (takes regular references to):
 //   * 'a';
 //   * 'b'.
-static bool values_equal(Value a, Value b)
+static inline UU_ALWAYS_INLINE bool values_equal(Value a, Value b)
 {
     if (a->kind != b->kind)
         return false;
@@ -831,7 +832,7 @@ static bool perform_len(State *state, Value v, Value *out)
     case VK_DICT:
         {
             Dict *dict = (Dict *) v;
-            *out = (Value) number_new_from_zu(dict->values_size);
+            *out = (Value) number_new_from_zu(xht_size(&dict->xht));
             value_unref(v);
             return true;
         }
@@ -1036,7 +1037,7 @@ void state_print_traceback(State *state)
 //   * 'where'.
 // Steals (takes move references to):
 //   * 'value'.
-static inline void store(Value *where, Value value)
+static inline UU_ALWAYS_INLINE void store(Value *where, Value value)
 {
     value_unref(*where);
     *where = value;
@@ -1046,7 +1047,7 @@ static inline void store(Value *where, Value value)
 //   * 'where'.
 // Steals (takes move references to):
 //   * 'value'.
-static inline void checked_store(MaybeValue *where, Value value)
+static inline UU_ALWAYS_INLINE void checked_store(MaybeValue *where, Value value)
 {
     maybe_value_unref(*where);
     *where = value;
@@ -1092,7 +1093,7 @@ static __attribute__((noinline))
 void missing_global(State *state, uint32_t idx)
 {
     size_t nname;
-    const char *name = ht_indexed_key(&state->globals_table, idx, &nname);
+    const char *name = xht_indexed_key(&state->globals_table, idx, &nname);
     if (nname > 8192)
         nname = 8192;
     state_prepare_error(state, "undefined global '%.*s'", (int) nname, name);

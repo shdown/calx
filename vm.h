@@ -132,12 +132,12 @@ UU_INHEADER bool value_kind_is_wrefable(char kind)
 
 void value_free(Value value);
 
-UU_INHEADER void value_ref(Value value)
+UU_INHEADER UU_ALWAYS_INLINE void value_ref(Value value)
 {
     ++value->nrefs;
 }
 
-UU_INHEADER void value_unref(Value value)
+UU_INHEADER UU_ALWAYS_INLINE void value_unref(Value value)
 {
     if (!--value->nrefs)
         value_free(value);
@@ -200,21 +200,21 @@ enum {
     AOP_CONCAT,
 };
 
-UU_INHEADER Value mk_nil(void)
+UU_INHEADER UU_ALWAYS_INLINE Value mk_nil(void)
 {
     Value v = &value_cache[VALUE_CACHE_NIL];
     value_ref(v);
     return v;
 }
 
-UU_INHEADER Value mk_flag(bool value)
+UU_INHEADER UU_ALWAYS_INLINE Value mk_flag(bool value)
 {
     Value v = &value_cache[value ? VALUE_CACHE_TRUE : VALUE_CACHE_FALSE];
     value_ref(v);
     return v;
 }
 
-UU_INHEADER void maybe_value_unref(MaybeValue v)
+UU_INHEADER UU_ALWAYS_INLINE void maybe_value_unref(MaybeValue v)
 {
     if (v)
         value_unref(v);
@@ -234,7 +234,7 @@ UU_INHEADER Value mk_func(Chunk *chunk, Instr *ip)
 
 // Borrows (takes regular references to):
 //   * 'f'.
-UU_INHEADER Shape func_shape(Func *f)
+UU_INHEADER UU_ALWAYS_INLINE Shape func_shape(Func *f)
 {
     return f->chunk->shapes[f->ip->c];
 }

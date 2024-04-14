@@ -5,12 +5,7 @@
 
 Dict *dict_new_steal(Value *kv, Value *kv_end)
 {
-    size_t max_size = ((size_t) (kv_end - kv)) / 2;
-
-    Ht keys = ht_new(0);
-
-    Value *values = uu_xmalloc(sizeof(Value), max_size);
-    uint32_t nvalues = 0;
+    xHt xht = xht_new(0);
 
     while (kv != kv_end) {
         Value k = *kv++;
@@ -18,13 +13,11 @@ Dict *dict_new_steal(Value *kv, Value *kv_end)
 
         String *key = (String *) k;
 
-        uint32_t idx = ht_put(&keys, key->data, key->size, key->hash, nvalues);
-        if (idx == nvalues) {
-            values[nvalues++] = v;
-        } else {
-            value_unref(values[idx]);
-            values[idx] = v;
+        MaybeValue *p = (MaybeValue *) xht_put_ptr(&xht, key->data, key->size, key->hash, NULL);
+        if (*p) {
+            value_unref(*p);
         }
+        *p = v;
 
         value_unref(k);
     }
@@ -35,10 +28,7 @@ Dict *dict_new_steal(Value *kv, Value *kv_end)
             .gc_hdr = {.nrefs = 1, .kind = VK_DICT},
             .wref_first = NULL,
         },
-        .keys = keys,
-        .values = values,
-        .values_size = nvalues,
-        .values_capacity = max_size,
+        .xht = xht,
     };
     return d;
 }

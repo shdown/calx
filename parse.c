@@ -5,7 +5,7 @@
 
 #include "lexer.h"
 #include "dasm.h"
-#include "ht.h"
+#include "xht.h"
 #include "hash.h"
 #include "number.h"
 #include "str.h"
@@ -73,7 +73,7 @@ typedef struct {
 } RangeStack;
 
 typedef struct {
-    Ht *data;
+    xHt *data;
     size_t size;
     size_t capacity;
 } ScopeStack;
@@ -148,7 +148,7 @@ static void parser_destroy(Parser *p)
     free(p->shapes.data);
 
     for (size_t i = 0; i < p->scopes.size; ++i)
-        ht_destroy(&p->scopes.data[i]);
+        xht_destroy(&p->scopes.data[i]);
     free(p->scopes.data);
 
     free(p->ranges.data);
@@ -306,11 +306,11 @@ static Instr load_to_store(Parser *p, Instr instr, bool local, Lexeme scapegoat)
     case OP_LOAD_SYMBOLIC:
         if (local) {
             Ident ident = p->idents.data[instr.c];
-            Ht *locals = &p->scopes.data[p->scopes.size - 1];
-            uint32_t idx = ht_put(
+            xHt *locals = &p->scopes.data[p->scopes.size - 1];
+            uint32_t idx = *xht_put_int(
                 locals,
                 ident.start, ident.size, hash_str(ident.start, ident.size),
-                ht_size(locals));
+                xht_size(locals));
             return (Instr) {OP_STORE_LOCAL, 0, 0, idx};
         } else {
             return (Instr) {OP_STORE_SYMBOLIC, 0, 0, instr.c};
@@ -347,19 +347,19 @@ static void open_scope(Parser *p)
 
     ScopeStack *x = &p->scopes;
     if (x->size == x->capacity) {
-        x->data = uu_x2realloc(x->data, &x->capacity, sizeof(Ht));
+        x->data = uu_x2realloc(x->data, &x->capacity, sizeof(xHt));
     }
     size_t i = x->size++;
-    x->data[i] = ht_new(0);
+    x->data[i] = xht_new(0);
 
     Range range = {i, pos, -1};
     push_range(p, range);
 }
 
-static inline Instr resolve_symbolic(Parser *p, Ht *locals, Instr instr, uint8_t op_local, uint8_t op_global)
+static inline Instr resolve_symbolic(Parser *p, xHt *locals, Instr instr, uint8_t op_local, uint8_t op_global)
 {
     Ident ident = p->idents.data[instr.c];
-    uint32_t local_idx = ht_get(
+    uint32_t local_idx = xht_get_int(
         locals,
         ident.start, ident.size, hash_str(ident.start, ident.size),
         -1);
@@ -385,7 +385,7 @@ static void close_scope(Parser *p, size_t *out_maxstack, uint32_t *out_nlocals)
     fixup_last_range_end(p, pos);
 
     size_t scope_idx = p->scopes.size - 1;
-    Ht *locals = &p->scopes.data[scope_idx];
+    xHt *locals = &p->scopes.data[scope_idx];
 
     static const int8_t actions[] = {
         [OP_LOAD_CONST] = 1,
@@ -467,14 +467,14 @@ static void close_scope(Parser *p, size_t *out_maxstack, uint32_t *out_nlocals)
     }
     p->ranges.size -= nranges_ours;
 
-    uint32_t nlocals = ht_size(locals);
+    uint32_t nlocals = xht_size(locals);
 
     if (UU_UNLIKELY(maxstack > SIZE_MAX / 2))
         throw_error(p, "program is too big");
     if (UU_UNLIKELY(nlocals > UINT32_MAX / 2))
         throw_error(p, "too many locals");
 
-    ht_destroy(locals);
+    xht_destroy(locals);
     --p->scopes.size;
 
     if (p->scopes.size) {
@@ -511,9 +511,9 @@ static size_t fun_begin(Parser *p)
 
 static void fun_param(Parser *p, size_t begin_pos, Lexeme name)
 {
-    Ht *locals = &p->scopes.data[p->scopes.size - 1];
-    uint32_t old_size = ht_size(locals);
-    uint32_t idx = ht_put(
+    xHt *locals = &p->scopes.data[p->scopes.size - 1];
+    uint32_t old_size = xht_size(locals);
+    uint32_t idx = *xht_put_int(
         locals,
         name.start, name.size, hash_str(name.start, name.size),
         old_size);

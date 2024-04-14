@@ -1,7 +1,7 @@
 // (c) 2020 shdown
 // This code is licensed under MIT license (see LICENSE.MIT for details)
 
-#include "ht.h"
+#include "xht.h"
 
 static __attribute__((noinline, noreturn))
 void overflow_handler(void)
@@ -9,7 +9,7 @@ void overflow_handler(void)
     UU_PANIC("too many elements in a hash table (would overflow uint32_t)");
 }
 
-static void grow_items(Ht *ht)
+static void grow_items(xHt *ht)
 {
     uint32_t capacity = ht->items_capacity;
 
@@ -22,11 +22,11 @@ static void grow_items(Ht *ht)
         capacity = UINT32_MAX;
     }
 
-    ht->items = uu_xrealloc(ht->items, sizeof(Ht_Item), capacity);
+    ht->items = uu_xrealloc(ht->items, sizeof(xHt_Item), capacity);
     ht->items_capacity = capacity;
 }
 
-static void grow_buckets(Ht *ht)
+static void grow_buckets(xHt *ht)
 {
     if (UU_UNLIKELY(__builtin_mul_overflow(ht->nbuckets, 2u, &ht->nbuckets)))
         overflow_handler();
@@ -36,7 +36,7 @@ static void grow_buckets(Ht *ht)
     uint32_t mask = ht->nbuckets - 1;
     uint32_t *buckets = ht->buckets;
     uint32_t nitems = ht->items_size;
-    Ht_Item *items = ht->items;
+    xHt_Item *items = ht->items;
     for (uint32_t i = 0; i < nitems; ++i) {
         uint32_t bucket = items[i].hash & mask;
         items[i].next = buckets[bucket];
@@ -44,8 +44,8 @@ static void grow_buckets(Ht *ht)
     }
 }
 
-uint32_t ht_indexed_first(
-        Ht *ht,
+uint32_t xht_indexed_first(
+        xHt *ht,
         uint32_t start_bucket)
 {
     uint32_t nbuckets = ht->nbuckets;
@@ -57,8 +57,8 @@ uint32_t ht_indexed_first(
     return -1;
 }
 
-uint32_t ht_indexed_next(
-        Ht *ht,
+uint32_t xht_indexed_next(
+        xHt *ht,
         const char *key,
         size_t nkey,
         uint32_t hash)
@@ -67,11 +67,11 @@ uint32_t ht_indexed_next(
 
     uint32_t i = ht->buckets[bucket];
     while (i != (uint32_t) -1) {
-        Ht_Item item = ht->items[i];
+        xHt_Item item = ht->items[i];
         if (item.nkey == nkey && (nkey == 0 || memcmp(key, item.key, nkey) == 0)) {
             if (item.next != (uint32_t) -1)
                 return item.next;
-            return ht_indexed_first(ht, bucket + 1);
+            return xht_indexed_first(ht, bucket + 1);
         }
         i = item.next;
     }
@@ -79,19 +79,19 @@ uint32_t ht_indexed_next(
     return -1;
 }
 
-void ht_insert_new_unchecked(
-        Ht *ht,
+xHt_Value *xht_insert_new_unchecked(
+        xHt *ht,
         const char *key,
         size_t nkey,
         uint32_t hash,
-        uint32_t value)
+        xHt_Value value)
 {
     uint32_t idx = ht->items_size++;
     if (idx == ht->items_capacity)
         grow_items(ht);
 
     uint32_t bucket = hash & (ht->nbuckets - 1);
-    ht->items[idx] = (Ht_Item) {
+    ht->items[idx] = (xHt_Item) {
         .key = uu_xmemdup(key, nkey),
         .nkey = nkey,
         .value = value,
@@ -102,11 +102,13 @@ void ht_insert_new_unchecked(
 
     if (((uint64_t) ht->items_size) * 4 > ((uint64_t) ht->nbuckets) * 3)
         grow_buckets(ht);
+
+    return &ht->items[idx].value;
 }
 
-static void pop_item_at_index(Ht *ht, uint32_t idx)
+static void pop_item_at_index(xHt *ht, uint32_t idx)
 {
-    Ht_Item *pitem = &ht->items[idx];
+    xHt_Item *pitem = &ht->items[idx];
     free(pitem->key);
 
     uint32_t idx_last = ht->items_size - 1;
@@ -124,12 +126,12 @@ static void pop_item_at_index(Ht *ht, uint32_t idx)
     --ht->items_size;
 }
 
-uint32_t ht_remove(
-        Ht *ht,
+xHt_Value xht_remove(
+        xHt *ht,
         const char *key,
         size_t nkey,
         uint32_t hash,
-        uint32_t if_absent)
+        xHt_Value if_absent)
 {
     uint32_t bucket = hash & (ht->nbuckets - 1);
 
@@ -138,9 +140,9 @@ uint32_t ht_remove(
         uint32_t i = *pi;
         if (i == (uint32_t) -1)
             break;
-        Ht_Item *pitem = &ht->items[i];
+        xHt_Item *pitem = &ht->items[i];
         if (pitem->nkey == nkey && (nkey == 0 || memcmp(key, pitem->key, nkey) == 0)) {
-            uint32_t value = pitem->value;
+            xHt_Value value = pitem->value;
             *pi = pitem->next;
             pop_item_at_index(ht, i);
             return value;
