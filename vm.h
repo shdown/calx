@@ -52,7 +52,7 @@ typedef struct {
 } Quark;
 
 typedef struct {
-    uint32_t nargs;
+    uint32_t nargs_encoded;
     uint32_t nlocals; // <= UINT32_MAX/2
     size_t offset;
     size_t maxstack; // <= SIZE_MAX/2

@@ -521,16 +521,16 @@ static Value X_NextKey(State *state, Value *args, uint32_t nargs)
     String *s = (String *) guardv_opt(state, args, 1, VK_STR);
     uint32_t key_idx;
     if (!s) {
-        key_idx = ht_indexed_first(&d->keys, /*start_bucket=*/0);
+        key_idx = xht_indexed_first(&d->xht, /*start_bucket=*/0);
     } else {
-        key_idx = ht_indexed_next(&d->keys, s->data, s->size, s->hash);
+        key_idx = xht_indexed_next(&d->xht, s->data, s->size, s->hash);
     }
 
     if (key_idx == (uint32_t) -1)
         return mk_nil();
 
     size_t nk;
-    const char *k = ht_indexed_key(&d->keys, key_idx, &nk);
+    const char *k = xht_indexed_key(&d->xht, key_idx, &nk);
     return (Value) string_new(k, nk);
 }
 

@@ -509,7 +509,7 @@ static size_t fun_begin(Parser *p)
     return pos;
 }
 
-static void fun_param(Parser *p, size_t begin_pos, Lexeme name)
+static void fun_param(Parser *p, size_t begin_pos, Lexeme name, bool gather)
 {
     xHt *locals = &p->scopes.data[p->scopes.size - 1];
     uint32_t old_size = xht_size(locals);
@@ -522,7 +522,11 @@ static void fun_param(Parser *p, size_t begin_pos, Lexeme name)
         throw_error_at(p, "duplicate parameter", name);
 
     Shape *shape = fun_shape_ptr(p, begin_pos);
-    ++shape->nargs;
+    if (gather) {
+        shape->nargs_encoded = ~shape->nargs_encoded;
+    } else {
+        ++shape->nargs_encoded;
+    }
 }
 
 static void fun_end(Parser *p, size_t begin_pos)
@@ -653,8 +657,9 @@ static bool binary_operator(Parser *p, int8_t min_priority)
     return true;
 }
 
-static uint32_t funcall(Parser *p)
+static uint32_t funcall(Parser *p, bool *is_scatter)
 {
+    *is_scatter = false;
     advance(p);
     if (p->cur.kind == LK_RPAREN) {
         advance(p);
@@ -662,6 +667,10 @@ static uint32_t funcall(Parser *p)
     }
     uint32_t nargs = 1;
     for (;;) {
+        if (p->cur.kind == LK_STAR) {
+            *is_scatter = true;
+            advance(p);
+        }
         expr(p, -1);
         switch (p->cur.kind) {
         case LK_RPAREN:
@@ -669,6 +678,8 @@ static uint32_t funcall(Parser *p)
             return nargs;
         case LK_COMMA:
             advance(p);
+            if (UU_UNLIKELY(*is_scatter))
+                throw_error_at(p, "scatter argument is not the last one", p->cur);
             if (UU_UNLIKELY(nargs == UINT32_MAX))
                 throw_error_at(p, "too many arguments", p->cur);
             ++nargs;
@@ -929,10 +940,11 @@ static inline void expr(Parser *p, int8_t min_priority)
                 slurp(p, LK_RPAREN, "expected ')'");
                 expect_expr = false;
             } else {
-                uint32_t nargs = funcall(p);
+                bool is_scatter;
+                uint32_t nargs = funcall(p, &is_scatter);
                 emit_at(
                     p,
-                    (Instr) {OP_CALL, 0, 0, nargs},
+                    (Instr) {OP_CALL, is_scatter, 0, nargs},
                     cur);
             }
             break;
@@ -1153,14 +1165,26 @@ static void fun_stmt(Parser *p)
     size_t fun_pos = fun_begin(p);
     if (p->cur.kind != LK_RPAREN) {
         for (;;) {
-            Lexeme param = p->cur;
-            if (UU_UNLIKELY(param.kind != LK_IDENT))
-                throw_error_at(p, "expected parameter name", param);
-            fun_param(p, fun_pos, param);
-            advance(p);
-            if (p->cur.kind == LK_RPAREN)
+            Lexeme lxm = p->cur;
+            if (lxm.kind == LK_STAR) {
+                advance(p);
+                lxm = p->cur;
+                if (UU_UNLIKELY(lxm.kind != LK_IDENT))
+                    throw_error_at(p, "expected gather parameter name", lxm);
+                fun_param(p, fun_pos, lxm, true);
+                advance(p);
+                if (p->cur.kind != LK_RPAREN)
+                    throw_error_at(p, "expected ')' after gather parameter", lxm);
                 break;
-            slurp(p, LK_COMMA, "expected ',' or ')'");
+            } else {
+                if (UU_UNLIKELY(lxm.kind != LK_IDENT))
+                    throw_error_at(p, "expected parameter name", lxm);
+                fun_param(p, fun_pos, lxm, false);
+                advance(p);
+                if (p->cur.kind == LK_RPAREN)
+                    break;
+                slurp(p, LK_COMMA, "expected ',' or ')'");
+            }
         }
     }
     advance(p);

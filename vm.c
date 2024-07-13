@@ -1065,7 +1065,7 @@ bool setup_for_eval(ScratchPad *pad, Func *func)
 {
     Shape shape = func_shape(func);
 
-    if (UU_UNLIKELY(shape.nargs != 0)) {
+    if (UU_UNLIKELY(shape.nargs_encoded != 0)) {
         pad->err_msg = uu_xstrdup("You are not supposed to call functions with args this way! >_~");
         return false;
     }
@@ -1132,8 +1132,79 @@ void state_set_ntp(State *s, NumberTruncateParams ntp)
     s->ntp = ntp;
 }
 
-static void do_call(State *state, ScratchPad *pad, uint32_t nargs)
+static inline void value_stack_push_copies(ValueStack *vs, Value *src, size_t nsrc)
 {
+    value_stack_ensure(vs, nsrc);
+    Value *dst = vs->top;
+    for (size_t i = 0; i < nsrc; ++i) {
+        Value v = src[i];
+        value_ref(v);
+        dst[i] = v;
+    }
+    vs->top += nsrc;
+}
+
+static size_t do_call_scatter(State *state, ScratchPad *pad)
+{
+    Value *vs_top = pad->rti.vs.top;
+    Value v = vs_top[-1];
+    if (UU_UNLIKELY(v->kind != VK_LIST)) {
+        state_throw(state, "cannot scatter %s value (expected list)", value_kind_name(v->kind));
+    }
+
+    pad->rti.vs.top = vs_top - 1;
+
+    List *list = (List *) v;
+    size_t n = list->size;
+    value_stack_push_copies(&pad->rti.vs, list->data, n);
+
+    value_unref(v);
+
+    return n;
+}
+
+static void do_call_gather(ScratchPad *pad, size_t n)
+{
+    if (!n) {
+        value_stack_ensure(&pad->rti.vs, 1);
+    }
+    Value *vs_top = pad->rti.vs.top;
+    List *list = list_new_steal(vs_top - n, n);
+    vs_top -= n;
+    *vs_top++ = (Value) list;
+    pad->rti.vs.top = vs_top;
+}
+
+static size_t do_call_coerce(State *state, ScratchPad *pad, uint32_t nargs_encoded, size_t nargs)
+{
+    if (((int32_t) nargs_encoded) >= 0) {
+        // no gather arg
+        if (UU_UNLIKELY(nargs != nargs_encoded)) {
+            state_throw(
+                state, "wrong number of arguments: expected %zu, got %zu",
+                (size_t) nargs_encoded, nargs);
+        }
+        return nargs;
+
+    } else {
+        // with gather arg
+        nargs_encoded = ~nargs_encoded;
+        if (UU_UNLIKELY(nargs < nargs_encoded)) {
+            state_throw(
+                state, "wrong number of arguments: expected at least %zu, got %zu",
+                (size_t) nargs_encoded, nargs);
+        }
+        do_call_gather(pad, nargs - nargs_encoded);
+        return ((size_t) nargs_encoded) + 1;
+    }
+}
+
+static void do_call(State *state, ScratchPad *pad, bool scatter, size_t nargs)
+{
+    if (scatter) {
+        nargs += do_call_scatter(state, pad) - 1;
+    }
+
     Value *vs_top = pad->rti.vs.top;
 
     Value v = *(vs_top - nargs - 1);
@@ -1141,13 +1212,10 @@ static void do_call(State *state, ScratchPad *pad, uint32_t nargs)
     if (v->kind == VK_FUNC) {
         Func *func = (Func *) v;
         Shape shape = func_shape(func);
-        size_t cur_locals_offset = pad->rti.locals - pad->rti.vs.begin;
 
-        if (UU_UNLIKELY(nargs != shape.nargs)) {
-            state_throw(
-                state, "wrong number of arguments: expected %zu, got %zu",
-                (size_t) shape.nargs, (size_t) nargs);
-        }
+        nargs = do_call_coerce(state, pad, shape.nargs_encoded, nargs);
+
+        size_t cur_locals_offset = pad->rti.locals - pad->rti.vs.begin;
 
         uint32_t nvars = shape.nlocals - nargs;
         value_stack_ensure(&pad->rti.vs, shape.maxstack + nvars);
@@ -1167,7 +1235,7 @@ static void do_call(State *state, ScratchPad *pad, uint32_t nargs)
 
     } else if (v->kind == VK_CFUNC) {
         Value r = ((NativeFunc *) v)->func(state, vs_top - nargs, nargs);
-        vs_top = popn(vs_top, ((size_t) nargs) + 1);
+        vs_top = popn(vs_top, nargs + 1);
         *vs_top++ = r;
         pad->rti.vs.top = vs_top;
 
@@ -1354,7 +1422,7 @@ MaybeValue state_eval(State *state, Func *callee)
 
     CASE(OP_CALL) {
         FLUSH();
-        do_call(state, pad, instr.c);
+        do_call(state, pad, instr.a, instr.c);
         UNFLUSH();
         ++ip;
     } DISPATCH();
