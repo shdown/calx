@@ -270,11 +270,15 @@ void state_set_ntp(State *s, NumberTruncateParams ntp);
 __attribute__((noreturn, format(printf, 2, 3)))
 void state_throw(State *s, const char *fmt, ...);
 
-uint32_t state_intern_global(State *s, const char *name, size_t nname);
+// Returns false if there would be too many globals (number of globals reached UINT32_MAX).
+// Otherwise, returns true.
+bool state_intern_global(State *s, const char *name, size_t nname, uint32_t *out_idx);
 
-// Steals (takes move references to):
+// Returns false if there would be too many globals (number of globals reached UINT32_MAX).
+// Otherwise, returns true and steals (takes move references to):
 //     * 'value'.
-void state_steal_global(State *s, const char *name, size_t nname, Value value);
+// Note that if the return value is false, it means that 'value' was *not* stolen.
+bool state_steal_global(State *s, const char *name, size_t nname, Value yes);
 
 // Steals (takes move references to):
 //     * 'f'.

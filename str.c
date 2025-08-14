@@ -99,7 +99,7 @@ bool string_equal(String *s, String *t)
 
     if (ns != nt)
         return false;
-    if (s->hash != t->hash)
+    if (!HASH_TYPE_EQ(s->hash, t->hash))
         return false;
     return ns == 0 || memcmp(s->data, t->data, ns) == 0;
 }

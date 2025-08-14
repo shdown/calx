@@ -5,12 +5,13 @@
 
 #include "common.h"
 #include "vm.h"
+#include "hash.h"
 
 typedef struct {
     GcHeader gc_hdr;
     size_t size;
     size_t capacity;
-    uint32_t hash;
+    HashType hash;
     char data[];
 } String;
 

@@ -209,9 +209,13 @@ void value_free(Value v)
     }
 }
 
-uint32_t state_intern_global(State *state, const char *name, size_t nname)
+bool state_intern_global(State *state, const char *name, size_t nname, uint32_t *out_idx)
 {
     uint32_t old_size = state->globals.size;
+    if (UU_UNLIKELY(old_size == UINT32_MAX)) {
+        return false;
+    }
+
     uint32_t idx = *xht_put_int(
         &state->globals_table,
         name, nname, hash_str(name, nname),
@@ -224,7 +228,8 @@ uint32_t state_intern_global(State *state, const char *name, size_t nname)
         state->globals.data[state->globals.size++] = NULL;
     }
 
-    return idx;
+    *out_idx = idx;
+    return true;
 }
 
 static ValueStack value_stack_new(size_t capacity)
@@ -1093,7 +1098,7 @@ static __attribute__((noinline))
 void missing_global(State *state, uint32_t idx)
 {
     size_t nname;
-    const char *name = xht_indexed_key(&state->globals_table, idx, &nname);
+    const char *name = xht_indexed_key(&state->globals_table, XHT_IDX_FROM_INT(idx), &nname);
     if (nname > 8192)
         nname = 8192;
     state_prepare_error(state, "undefined global '%.*s'", (int) nname, name);
@@ -1116,10 +1121,14 @@ bool check_dict_keys(State *state, Value *kv, Value *kv_end)
     return true;
 }
 
-void state_steal_global(State *state, const char *name, size_t nname, Value value)
+bool state_steal_global(State *state, const char *name, size_t nname, Value value)
 {
-    uint32_t idx = state_intern_global(state, name, nname);
+    uint32_t idx;
+    if (UU_UNLIKELY(!state_intern_global(state, name, nname, &idx))) {
+        return false;
+    }
     checked_store(&state->globals.data[idx], value);
+    return true;
 }
 
 NumberTruncateParams state_get_ntp(State *s)

@@ -13,6 +13,7 @@
 #include "number.h"
 #include "text_manip.h"
 #include "prompt.h"
+#include "xht.h"
 
 static bool debug_flag = false;
 static char *calx_path = NULL;
@@ -42,7 +43,7 @@ static inline void text_buf_ensure(TextBuf *tb, size_t n)
 
 static inline void text_buf_append(TextBuf *tb, const char *buf, size_t nbuf)
 {
-    text_buf_ensure(tb, tb->size + nbuf);
+    text_buf_ensure(tb, uu_add_zu_or_saturate(tb->size, nbuf));
     if (nbuf)
         memcpy(tb->data + tb->size, buf, nbuf);
     tb->size += nbuf;
@@ -519,14 +520,14 @@ static Value X_NextKey(State *state, Value *args, uint32_t nargs)
     guardn(state, nargs, 2);
     Dict *d = (Dict *) guardv(state, args, 0, VK_DICT);
     String *s = (String *) guardv_opt(state, args, 1, VK_STR);
-    uint32_t key_idx;
+    xHt_IDX key_idx;
     if (!s) {
-        key_idx = xht_indexed_first(&d->xht, /*start_bucket=*/0);
+        key_idx = xht_indexed_first(&d->xht, XHT_IDX_FROM_INT(0));
     } else {
         key_idx = xht_indexed_next(&d->xht, s->data, s->size, s->hash);
     }
 
-    if (key_idx == (uint32_t) -1)
+    if (XHT_IDX_EQ(key_idx, XHT_IDX_BAD))
         return mk_nil();
 
     size_t nk;
@@ -721,41 +722,48 @@ static void inject_stdlib(State *state)
     value_unref(r);
 }
 
+static inline void set_global_or_die(State *state, const char *name, size_t nname, Value value)
+{
+    if (UU_UNLIKELY(!state_steal_global(state, name, nname, value))) {
+        UU_PANIC("too many built-in functions and/or constants (number of globals reached 0xFFFFFFFF)");
+    }
+}
+
 static State *make_state(void)
 {
     State *state = state_new();
 
 #define PAIR(S) S, strlen(S)
-    state_steal_global(state, PAIR("Dasm"), mk_cfunc(X_Dasm));
-    state_steal_global(state, PAIR("Kind"), mk_cfunc(X_Kind));
-    state_steal_global(state, PAIR("Pop"), mk_cfunc(X_Pop));
-    state_steal_global(state, PAIR("RemoveKey"), mk_cfunc(X_RemoveKey));
-    state_steal_global(state, PAIR("Input"), mk_cfunc(X_Input));
-    state_steal_global(state, PAIR("Ord"), mk_cfunc(X_Ord));
-    state_steal_global(state, PAIR("Chr"), mk_cfunc(X_Chr));
-    state_steal_global(state, PAIR("Error"), mk_cfunc(X_Error));
-    state_steal_global(state, PAIR("RawRead"), mk_cfunc(X_RawRead));
-    state_steal_global(state, PAIR("RawWrite"), mk_cfunc(X_RawWrite));
-    state_steal_global(state, PAIR("Clock"), mk_cfunc(X_Clock));
-    state_steal_global(state, PAIR("Scale"), mk_cfunc(X_Scale));
-    state_steal_global(state, PAIR("Where"), mk_cfunc(X_Where));
-    state_steal_global(state, PAIR("Random32"), mk_cfunc(X_Random32));
-    state_steal_global(state, PAIR("trunc"), mk_cfunc(X_Trunc));
-    state_steal_global(state, PAIR("floor"), mk_cfunc(X_Floor));
-    state_steal_global(state, PAIR("ceil"), mk_cfunc(X_Ceil));
-    state_steal_global(state, PAIR("round"), mk_cfunc(X_Round));
-    state_steal_global(state, PAIR("frac"), mk_cfunc(X_Frac));
-    state_steal_global(state, PAIR("LoadString"), mk_cfunc(X_LoadString));
-    state_steal_global(state, PAIR("Require"), mk_cfunc(X_Require));
-    state_steal_global(state, PAIR("NextKey"), mk_cfunc(X_NextKey));
-    state_steal_global(state, PAIR("ToNumber"), mk_cfunc(X_ToNumber));
-    state_steal_global(state, PAIR("Encode"), mk_cfunc(X_Encode));
-    state_steal_global(state, PAIR("Decode"), mk_cfunc(X_Decode));
-    state_steal_global(state, PAIR("NumDigits"), mk_cfunc(X_NumDigits));
-    state_steal_global(state, PAIR("DownScale"), mk_cfunc(X_DownScale));
-    state_steal_global(state, PAIR("UpScale"), mk_cfunc(X_UpScale));
-    state_steal_global(state, PAIR("Wref"), mk_cfunc(X_Wref));
-    state_steal_global(state, PAIR("Wvalue"), mk_cfunc(X_Wvalue));
+    set_global_or_die(state, PAIR("Dasm"), mk_cfunc(X_Dasm));
+    set_global_or_die(state, PAIR("Kind"), mk_cfunc(X_Kind));
+    set_global_or_die(state, PAIR("Pop"), mk_cfunc(X_Pop));
+    set_global_or_die(state, PAIR("RemoveKey"), mk_cfunc(X_RemoveKey));
+    set_global_or_die(state, PAIR("Input"), mk_cfunc(X_Input));
+    set_global_or_die(state, PAIR("Ord"), mk_cfunc(X_Ord));
+    set_global_or_die(state, PAIR("Chr"), mk_cfunc(X_Chr));
+    set_global_or_die(state, PAIR("Error"), mk_cfunc(X_Error));
+    set_global_or_die(state, PAIR("RawRead"), mk_cfunc(X_RawRead));
+    set_global_or_die(state, PAIR("RawWrite"), mk_cfunc(X_RawWrite));
+    set_global_or_die(state, PAIR("Clock"), mk_cfunc(X_Clock));
+    set_global_or_die(state, PAIR("Scale"), mk_cfunc(X_Scale));
+    set_global_or_die(state, PAIR("Where"), mk_cfunc(X_Where));
+    set_global_or_die(state, PAIR("Random32"), mk_cfunc(X_Random32));
+    set_global_or_die(state, PAIR("trunc"), mk_cfunc(X_Trunc));
+    set_global_or_die(state, PAIR("floor"), mk_cfunc(X_Floor));
+    set_global_or_die(state, PAIR("ceil"), mk_cfunc(X_Ceil));
+    set_global_or_die(state, PAIR("round"), mk_cfunc(X_Round));
+    set_global_or_die(state, PAIR("frac"), mk_cfunc(X_Frac));
+    set_global_or_die(state, PAIR("LoadString"), mk_cfunc(X_LoadString));
+    set_global_or_die(state, PAIR("Require"), mk_cfunc(X_Require));
+    set_global_or_die(state, PAIR("NextKey"), mk_cfunc(X_NextKey));
+    set_global_or_die(state, PAIR("ToNumber"), mk_cfunc(X_ToNumber));
+    set_global_or_die(state, PAIR("Encode"), mk_cfunc(X_Encode));
+    set_global_or_die(state, PAIR("Decode"), mk_cfunc(X_Decode));
+    set_global_or_die(state, PAIR("NumDigits"), mk_cfunc(X_NumDigits));
+    set_global_or_die(state, PAIR("DownScale"), mk_cfunc(X_DownScale));
+    set_global_or_die(state, PAIR("UpScale"), mk_cfunc(X_UpScale));
+    set_global_or_die(state, PAIR("Wref"), mk_cfunc(X_Wref));
+    set_global_or_die(state, PAIR("Wvalue"), mk_cfunc(X_Wvalue));
 #undef PAIR
 
     inject_stdlib(state);

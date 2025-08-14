@@ -94,7 +94,7 @@ static xHt make_keywords_ht(void)
     for (const Keyword *p = keywords; p->spelling; ++p) {
         const char *spelling = p->spelling;
         size_t nspelling = strlen(spelling);
-        uint32_t hash = hash_str(spelling, nspelling);
+        HashType hash = hash_str(spelling, nspelling);
         uint32_t value = p->kind | (p->is_blocky ? BLOCKY_BIT : 0);
         (void) xht_insert_new_unchecked_int(&ht, spelling, nspelling, hash, value);
     }

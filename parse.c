@@ -198,6 +198,16 @@ void throw_error_precise(Parser *p, const char *msg, Position pos, size_t size)
     longjmp(p->err_handler, 1);
 }
 
+static inline void check_size_before_inserting_into_locals(
+    uint32_t old_size,
+    Parser *p,
+    Lexeme at)
+{
+    if (UU_UNLIKELY(old_size == UINT32_MAX)) {
+        throw_error_at(p, "too much locals", at);
+    }
+}
+
 static uint32_t add_shape(Parser *p)
 {
     ShapeList *x = &p->shapes;
@@ -307,10 +317,12 @@ static Instr load_to_store(Parser *p, Instr instr, bool local, Lexeme scapegoat)
         if (local) {
             Ident ident = p->idents.data[instr.c];
             xHt *locals = &p->scopes.data[p->scopes.size - 1];
+            uint32_t old_size = xht_size(locals);
+            check_size_before_inserting_into_locals(old_size, p, scapegoat);
             uint32_t idx = *xht_put_int(
                 locals,
                 ident.start, ident.size, hash_str(ident.start, ident.size),
-                xht_size(locals));
+                old_size);
             return (Instr) {OP_STORE_LOCAL, 0, 0, idx};
         } else {
             return (Instr) {OP_STORE_SYMBOLIC, 0, 0, instr.c};
@@ -367,7 +379,10 @@ static inline Instr resolve_symbolic(Parser *p, xHt *locals, Instr instr, uint8_
         return (Instr) {op_local, instr.a, 0, local_idx};
     }
 
-    uint32_t global_idx = state_intern_global(p->state, ident.start, ident.size);
+    uint32_t global_idx;
+    if (UU_UNLIKELY(!state_intern_global(p->state, ident.start, ident.size, &global_idx))) {
+        throw_error(p, "too many globals");
+    }
     return (Instr) {op_global, instr.a, 0, global_idx};
 }
 
@@ -513,6 +528,7 @@ static void fun_param(Parser *p, size_t begin_pos, Lexeme name, bool gather)
 {
     xHt *locals = &p->scopes.data[p->scopes.size - 1];
     uint32_t old_size = xht_size(locals);
+    check_size_before_inserting_into_locals(old_size, p, name);
     uint32_t idx = *xht_put_int(
         locals,
         name.start, name.size, hash_str(name.start, name.size),

@@ -3,23 +3,38 @@
 
 #include "xht.h"
 
+#define WRAP(I_) ((xHt_IDX) {(I_)})
+#define UNWRAP(X_) ((X_).v)
+
 static __attribute__((noinline, noreturn))
-void overflow_handler(void)
+void overflow_handler(bool is_insane_size_within_64_bits)
 {
-    UU_PANIC("too many elements in a hash table (would overflow uint32_t)");
+    int nbits = sizeof(xHt_IDX_internal) * 8;
+    if (is_insane_size_within_64_bits) {
+        nbits -= 2;
+    }
+
+    char errmsg[64];
+    snprintf(
+        errmsg, sizeof(errmsg),
+        "hash table: overflow: new size would exceed %d bits",
+        nbits);
+    UU_PANIC(errmsg);
 }
 
 static void grow_items(xHt *ht)
 {
-    uint32_t capacity = ht->items_capacity;
+    static const xHt_IDX_internal IDX_MAX = (xHt_IDX_internal) -1;
 
-    if (UU_UNLIKELY(capacity == UINT32_MAX))
-        overflow_handler();
+    xHt_IDX_internal capacity = ht->items_capacity;
+
+    if (UU_UNLIKELY(capacity == IDX_MAX))
+        overflow_handler(false);
 
     if (capacity == 0) {
         capacity = 1;
     } else if (UU_UNLIKELY(__builtin_mul_overflow(capacity, 2u, &capacity))) {
-        capacity = UINT32_MAX;
+        capacity = IDX_MAX;
     }
 
     ht->items = uu_xrealloc(ht->items, sizeof(xHt_Item), capacity);
@@ -29,68 +44,70 @@ static void grow_items(xHt *ht)
 static void grow_buckets(xHt *ht)
 {
     if (UU_UNLIKELY(__builtin_mul_overflow(ht->nbuckets, 2u, &ht->nbuckets)))
-        overflow_handler();
-    ht->buckets = uu_xrealloc(ht->buckets, sizeof(uint32_t), ht->nbuckets);
-    memset(ht->buckets, '\xFF', sizeof(uint32_t) * (size_t) ht->nbuckets);
+        overflow_handler(false);
+    ht->buckets = uu_xrealloc(ht->buckets, sizeof(xHt_IDX_internal), ht->nbuckets);
+    memset(ht->buckets, '\xFF', sizeof(xHt_IDX_internal) * (size_t) ht->nbuckets);
 
-    uint32_t mask = ht->nbuckets - 1;
-    uint32_t *buckets = ht->buckets;
-    uint32_t nitems = ht->items_size;
+    xHt_IDX_internal mask = ht->nbuckets - 1;
+    xHt_IDX_internal *buckets = ht->buckets;
+    xHt_IDX_internal nitems = ht->items_size;
+
     xHt_Item *items = ht->items;
-    for (uint32_t i = 0; i < nitems; ++i) {
-        uint32_t bucket = items[i].hash & mask;
+
+    for (size_t i = 0; i < nitems; ++i) {
+        xHt_IDX_internal bucket = HASH_TYPE_UNWRAP(items[i].hash) & mask;
         items[i].next = buckets[bucket];
         buckets[bucket] = i;
     }
 }
 
-uint32_t xht_indexed_first(
+xHt_IDX xht_indexed_first(
         xHt *ht,
-        uint32_t start_bucket)
+        xHt_IDX start_bucket)
 {
-    uint32_t nbuckets = ht->nbuckets;
-    for (uint32_t b = start_bucket; b != nbuckets; ++b) {
-        uint32_t i = ht->buckets[b];
-        if (i != (uint32_t) -1)
-            return i;
+    xHt_IDX_internal nbuckets = ht->nbuckets;
+    for (xHt_IDX_internal b = UNWRAP(start_bucket); b != nbuckets; ++b) {
+        xHt_IDX_internal i = ht->buckets[b];
+        if (i != (xHt_IDX_internal) -1)
+            return WRAP(i);
     }
-    return -1;
+    return WRAP(-1);
 }
 
-uint32_t xht_indexed_next(
+xHt_IDX xht_indexed_next(
         xHt *ht,
         const char *key,
         size_t nkey,
-        uint32_t hash)
+        HashType hash)
 {
-    uint32_t bucket = hash & (ht->nbuckets - 1);
+    xHt_IDX_internal bucket = HASH_TYPE_UNWRAP(hash) & (ht->nbuckets - 1);
 
-    uint32_t i = ht->buckets[bucket];
-    while (i != (uint32_t) -1) {
+    xHt_IDX_internal i = ht->buckets[bucket];
+    while (i != (xHt_IDX_internal) -1) {
         xHt_Item item = ht->items[i];
         if (item.nkey == nkey && (nkey == 0 || memcmp(key, item.key, nkey) == 0)) {
-            if (item.next != (uint32_t) -1)
-                return item.next;
-            return xht_indexed_first(ht, bucket + 1);
+            if (item.next != (xHt_IDX_internal) -1)
+                return WRAP(item.next);
+            return xht_indexed_first(ht, WRAP(bucket + 1));
         }
         i = item.next;
     }
     // no such key
-    return -1;
+    return WRAP(-1);
 }
 
 xHt_Value *xht_insert_new_unchecked(
         xHt *ht,
         const char *key,
         size_t nkey,
-        uint32_t hash,
+        HashType hash,
         xHt_Value value)
 {
-    uint32_t idx = ht->items_size++;
+    xHt_IDX_internal idx = ht->items_size++;
     if (idx == ht->items_capacity)
         grow_items(ht);
 
-    uint32_t bucket = hash & (ht->nbuckets - 1);
+    xHt_IDX_internal bucket = HASH_TYPE_UNWRAP(hash) & (ht->nbuckets - 1);
     ht->items[idx] = (xHt_Item) {
         .key = uu_xmemdup(key, nkey),
         .nkey = nkey,
@@ -100,22 +117,37 @@ xHt_Value *xht_insert_new_unchecked(
     };
     ht->buckets[bucket] = idx;
 
-    if (((uint64_t) ht->items_size) * 4 > ((uint64_t) ht->nbuckets) * 3)
-        grow_buckets(ht);
+    if (sizeof(xHt_IDX_internal) <= 4) {
+        if (((uint64_t) ht->items_size) * 4 > ((uint64_t) ht->nbuckets) * 3) {
+            grow_buckets(ht);
+        }
+    } else {
+        uint64_t a = ht->items_size;
+        uint64_t b = ht->nbuckets;
+        if (UU_UNLIKELY(__builtin_mul_overflow(a, 4, &a))) {
+            overflow_handler(true);
+        }
+        if (UU_UNLIKELY(__builtin_mul_overflow(b, 3, &b))) {
+            overflow_handler(true);
+        }
+        if (a > b) {
+            grow_buckets(ht);
+        }
+    }
 
     return &ht->items[idx].value;
 }
 
-static void pop_item_at_index(xHt *ht, uint32_t idx)
+static void pop_item_at_index(xHt *ht, xHt_IDX_internal idx)
 {
     xHt_Item *pitem = &ht->items[idx];
     free(pitem->key);
 
-    uint32_t idx_last = ht->items_size - 1;
+    xHt_IDX_internal idx_last = ht->items_size - 1;
 
     if (idx != idx_last) {
-        uint32_t bucket = ht->items[idx_last].hash & (ht->nbuckets - 1);
-        uint32_t *pi = &ht->buckets[bucket];
+        xHt_IDX_internal bucket = HASH_TYPE_UNWRAP(ht->items[idx_last].hash) & (ht->nbuckets - 1);
+        xHt_IDX_internal *pi = &ht->buckets[bucket];
         while (*pi != idx_last) {
             pi = &ht->items[*pi].next;
         }
@@ -130,15 +162,15 @@ xHt_Value xht_remove(
         xHt *ht,
         const char *key,
         size_t nkey,
-        uint32_t hash,
+        HashType hash,
         xHt_Value if_absent)
 {
-    uint32_t bucket = hash & (ht->nbuckets - 1);
+    xHt_IDX_internal bucket = HASH_TYPE_UNWRAP(hash) & (ht->nbuckets - 1);
 
-    uint32_t *pi = &ht->buckets[bucket];
+    xHt_IDX_internal *pi = &ht->buckets[bucket];
     for (;;) {
-        uint32_t i = *pi;
-        if (i == (uint32_t) -1)
+        xHt_IDX_internal i = *pi;
+        if (i == (xHt_IDX_internal) -1)
             break;
         xHt_Item *pitem = &ht->items[i];
         if (pitem->nkey == nkey && (nkey == 0 || memcmp(key, pitem->key, nkey) == 0)) {
