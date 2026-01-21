@@ -304,8 +304,8 @@ static Value X_RawRead(State *state, Value *args, uint32_t nargs)
     switch (s->data[0]) {
     case 'L':
         {
-            char *buf;
-            size_t nbuf;
+            char *buf = NULL;
+            size_t nbuf = 0;
             ssize_t n = getline(&buf, &nbuf, stdin);
             if (n < 0)
                 n = 0;
@@ -315,8 +315,8 @@ static Value X_RawRead(State *state, Value *args, uint32_t nargs)
         }
     case 's':
         {
-            char *buf;
-            size_t nbuf;
+            char *buf = NULL;
+            size_t nbuf = 0;
             ssize_t n = getline(&buf, &nbuf, stdin);
             if (n < 0) {
                 n = 0;
