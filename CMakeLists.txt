@@ -21,13 +21,19 @@ endfunction ()
 
 calx_add_stringified_file ("stdlib_calx.generated.inc" "stdlib.calx" "stringify-stdlib")
 
+include (CheckSymbolExists)
+set (CMAKE_REQUIRED_DEFINITIONS "-D_XOPEN_SOURCE=500")
+check_symbol_exists (wcwidth "wchar.h" CALX_HAVE_WCWIDTH)
+configure_file ("probes.in.h" "probes.generated.h")
+
 file (GLOB sources "*.c" "libdeci/*.c" "libdeci-kara/*.c" "libdeci-ntt/*.c" "libdeci-newt/*.c")
 add_executable (calx ${sources})
 add_dependencies (calx "stringify-stdlib")
 include_directories ("libdeci")
 target_link_libraries (calx PUBLIC readline)
 target_compile_definitions (calx PUBLIC
-    -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700
+    -D_POSIX_C_SOURCE=200809L
+    -D_XOPEN_SOURCE=500
     -DCALX_HANDLE_SEGV=0
 )
 

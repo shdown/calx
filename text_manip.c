@@ -2,6 +2,7 @@
 // This code is licensed under MIT license (see LICENSE.MIT for details)
 
 #include "text_manip.h"
+#include "probes.generated.h"
 
 const char *text_nth_line(const char *text, size_t ntext, size_t lineno, size_t *out_len)
 {
@@ -39,10 +40,16 @@ static size_t decode_wide(const char *s, size_t ns, size_t *out_width)
     size_t r = mbrtowc(&c, s, ns, &mbs);
     if (r == 0 || r == ((size_t) -1) || r == ((size_t) -2))
         return 0;
+
+#if CALX_HAVE_WCWIDTH
     int width = wcwidth(c);
     if (width < 0)
         return 0;
     *out_width = width;
+#else
+    *out_width = c ? 1 : 0;
+#endif
+
     return r;
 }
 
