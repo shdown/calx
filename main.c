@@ -14,6 +14,7 @@
 #include "text_manip.h"
 #include "prompt.h"
 #include "xht.h"
+#include "handle_sigsegv.h"
 
 static bool debug_flag = false;
 static char *calx_path = NULL;
@@ -904,6 +905,9 @@ static void print_usage(void)
 int main(int argc, char **argv)
 {
     init_globals();
+#if CALX_HANDLE_SIGSEGV
+    install_sigsegv_handler();
+#endif
 
     int ret;
     const char *c_arg = NULL;
@@ -951,6 +955,9 @@ int main(int argc, char **argv)
         goto done;
     }
 done:
+#if CALX_HANDLE_SIGSEGV
+    uninstall_sigsegv_handler();
+#endif
     free_globals();
     return ret;
 }

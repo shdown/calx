@@ -1,6 +1,7 @@
 /calx
 /coverage
 *.generated.inc
+*.generated.h
 # CMake
 CMakeCache.txt
 CMakeFiles
