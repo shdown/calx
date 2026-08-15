@@ -22,7 +22,7 @@ const char *text_nth_line(const char *text, size_t ntext, size_t lineno, size_t 
 
 void text_putnc(FILE *out, int c, size_t n)
 {
-    enum { NBUF = 512 };
+    enum { NBUF = 128 };
     char buf[NBUF];
 
     memset(buf, c, NBUF);
