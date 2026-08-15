@@ -382,6 +382,7 @@ Lexeme lexer_next(Lexer *x)
         switch (*x->cur) {
         case ' ':
         case '\t':
+        case '\r':
             ++x->cur;
             break;
         case '\n':
