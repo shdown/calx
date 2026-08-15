@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include <time.h>
+#include <locale.h>
 
 #include "vm.h"
 #include "dasm.h"
@@ -905,9 +906,12 @@ static void print_usage(void)
 int main(int argc, char **argv)
 {
     init_globals();
-#if CALX_HANDLE_SIGSEGV
     install_sigsegv_handler();
-#endif
+
+    if (!setlocale(LC_ALL, "")) {
+        fprintf(stderr, "setlocale() failed.\n");
+        abort();
+    }
 
     int ret;
     const char *c_arg = NULL;
@@ -955,9 +959,7 @@ int main(int argc, char **argv)
         goto done;
     }
 done:
-#if CALX_HANDLE_SIGSEGV
     uninstall_sigsegv_handler();
-#endif
     free_globals();
     return ret;
 }

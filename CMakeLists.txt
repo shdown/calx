@@ -34,7 +34,6 @@ target_link_libraries (calx PUBLIC readline)
 target_compile_definitions (calx PUBLIC
     -D_POSIX_C_SOURCE=200809L
     -D_XOPEN_SOURCE=500
-    -DCALX_HANDLE_SIGSEGV=1
 )
 
 include (GNUInstallDirs)

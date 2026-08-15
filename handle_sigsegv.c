@@ -4,6 +4,18 @@
 #include "handle_sigsegv.h"
 #include <signal.h>
 
+#if NO_HANDLE_SIGSEGV
+
+void install_sigsegv_handler(void)
+{
+}
+
+void uninstall_sigsegv_handler(void)
+{
+}
+
+#else
+
 static const char MSG[] =
     "Caught SIGSEGV!\n"
     "\n"
@@ -19,7 +31,7 @@ static const char MSG[] =
     "\n"
     "Bye!\n"
     ;
-static size_t MSG_LEN = sizeof(MSG) - 1;
+static const size_t MSG_LEN = sizeof(MSG) - 1;
 
 static void full_write(int fd, const char *data, size_t ndata)
 {
@@ -96,3 +108,5 @@ void uninstall_sigsegv_handler(void)
 
     free(sp);
 }
+
+#endif
