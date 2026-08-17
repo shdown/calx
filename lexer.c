@@ -216,11 +216,15 @@ static Lexeme string(Lexer *x)
             return make_lexeme(x, LK_STRING, start);
         case '\\':
             ++x->cur;
-            if (UU_UNLIKELY(x->cur == x->end))
+            if (UU_UNLIKELY(x->cur == x->end)) {
                 return make_error_advance(x, "unterminated string (EOF reached)", 0);
+            }
+            if (UU_UNLIKELY(*x->cur == '\n')) {
+                return make_error_advance(x, "backslash at the end of line", 0);
+            }
             break;
         case '\n':
-            return make_error_advance(x, "unterminated string (EOL reached)", 0);
+            return make_error_advance(x, "unterminated string (end of line reached)", 0);
         }
     }
 }
