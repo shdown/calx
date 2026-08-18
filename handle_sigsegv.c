@@ -62,7 +62,6 @@ static void do_warn(void)
     fprintf(stderr, "WARNING: something went wrong with installing signal handler for SIGSEGV.\n");
 }
 
-enum { SP_SIZE = SIGSTKSZ };
 static void *sp;
 
 static void do_set_handler(
@@ -87,11 +86,14 @@ static void do_set_handler(
 
 void install_sigsegv_handler(void)
 {
-    sp = uu_xmalloc(SP_SIZE, 1);
+    size_t sp_size = SIGSTKSZ;
+
+    sp = uu_xmalloc(sp_size, 1);
+
     stack_t my_altstack = {
         .ss_sp = sp,
         .ss_flags = 0,
-        .ss_size = SP_SIZE,
+        .ss_size = sp_size,
     };
     if (sigaltstack(&my_altstack, NULL) < 0) {
         perror("sigaltstack");
@@ -105,6 +107,13 @@ void install_sigsegv_handler(void)
 void uninstall_sigsegv_handler(void)
 {
     do_set_handler(SIG_DFL, 0);
+
+    stack_t my_altstack = {
+        .ss_flags = SS_DISABLE,
+    };
+    if (sigaltstack(&my_altstack, NULL) < 0) {
+        perror("sigaltstack");
+    }
 
     free(sp);
 }
