@@ -33,24 +33,45 @@ void text_putnc(FILE *out, int c, size_t n)
     fwrite(buf, 1, n, out);
 }
 
-static size_t decode_wide(const char *s, size_t ns, size_t *out_width)
+static size_t decode_wide(const char *s, size_t ns, size_t *out_width, const char **out_replacement)
 {
     mbstate_t mbs = {0};
     wchar_t c;
     size_t r = mbrtowc(&c, s, ns, &mbs);
-    if (r == 0 || r == ((size_t) -1) || r == ((size_t) -2))
+    if (r == 0 || r == ((size_t) -1) || r == ((size_t) -2)) {
+        // Illegal sequence or NUL
+        goto illegal;
+    }
+
+    if (c == L'\t') {
+        // Tab
+        *out_replacement = "    ";
+        *out_width = 4;
         return 0;
+    } else if (c == L'\r') {
+        // <CR> (Windows-style newline is <CR><LF>)
+        *out_replacement = " ";
+        *out_width = 1;
+        return 0;
+    }
 
 #if CALX_HAVE_WCWIDTH
     int width = wcwidth(c);
-    if (width < 0)
-        return 0;
+    if (width < 0) {
+        // Non-printable
+        goto illegal;
+    }
     *out_width = width;
 #else
     *out_width = c ? 1 : 0;
 #endif
 
     return r;
+
+illegal:
+    *out_replacement = "?";
+    *out_width = 1;
+    return 0;
 }
 
 static size_t print_counting(FILE *out, const char **ps, size_t *pns, size_t limit)
@@ -65,17 +86,17 @@ static size_t print_counting(FILE *out, const char **ps, size_t *pns, size_t lim
     size_t offset = 0;
     while (offset < boundary) {
         size_t width;
-        size_t n = decode_wide(s + offset, ns - offset, &width);
+        const char *replacement;
+        size_t n = decode_wide(s + offset, ns - offset, &width, &replacement);
         if (n) {
-            total_width += width;
             offset += n;
         } else {
             fwrite(s + prev, 1, offset - prev, out);
-            fputc('?', out);
+            fputs(replacement, out);
             ++offset;
             prev = offset;
-            ++total_width;
         }
+        total_width += width;
     }
     if (prev != offset)
         fwrite(s + prev, 1, offset - prev, out);
