@@ -1,0 +1,27 @@
+fun repeat(s, n) {
+    r := ""
+    for (i := 0; i < n; i += 1) {
+        r ~= s
+    }
+    return r
+}
+
+fun check(i, r) {
+    expected_r := repeat("9", i - 1) ~ "8" ~ repeat("0", i - 1) ~ "1"
+    if (r != expected_r) {
+        "i => " ~ i
+        "r => " ~ r
+        "expected_r => " ~ expected_r
+        Error("check() failed")
+    }
+}
+
+MAX = 1100
+
+for (i := 1; i <= MAX; i += 1) {
+    a := 10 ** i - 1
+    b := 10 ** i - 1
+    check(i, ToString(a * b))
+}
+
+"Ok"
