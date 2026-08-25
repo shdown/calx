@@ -57,13 +57,18 @@ static size_t decode_wide(const char *s, size_t ns, size_t *out_width, const cha
 
 #if CALX_HAVE_WCWIDTH
     int width = wcwidth(c);
-    if (width < 0) {
+    if (width < 0 || c == L'\0') {
         // Non-printable
         goto illegal;
     }
     *out_width = width;
 #else
-    *out_width = c ? 1 : 0;
+    if ((c & 127) == c && c < 32) {
+        // Non-printable
+        goto illegal;
+    } else {
+        *out_width = 1;
+    }
 #endif
 
     return r;
