@@ -63,7 +63,7 @@ static size_t decode_wide(const char *s, size_t ns, size_t *out_width, const cha
     }
     *out_width = width;
 #else
-    if ((c & 127) == c && c < 32) {
+    if ((c & 127) == c && (c < 32 || c == 127)) {
         // Non-printable
         goto illegal;
     } else {
